@@ -12,35 +12,29 @@ logger = logging.getLogger(__name__)
 
 @app.get("/")
 def raiz():
-    return {"mensaje": "Servidor del Chatbot Bahia activo (Modo Twilio)."}
+    return {"mensaje": "Servidor del Chatbot Bahia activo (Modo Telegram)."}
 
-def procesar_mensaje(numero_remitente: str, texto_usuario: str) -> None:
-    logger.info("Mensaje recibido de %s", numero_remitente)
+def procesar_mensaje(chat_id: int, texto_usuario: str) -> None:
+    logger.info("Procesando mensaje del chat %s", chat_id)
     
     respuesta_ia = generar_respuesta(texto_usuario)
-    
-    if not enviar_mensaje(numero_remitente, respuesta_ia):
-        logger.error("No se pudo enviar la respuesta a %s", numero_remitente)
+    enviar_mensaje(chat_id, respuesta_ia)
 
 @app.post("/webhook")
-async def procesar_mensajes(
-    request: Request,
-    background_tasks: BackgroundTasks,
-):
+async def telegram_webhook(request: Request, background_tasks: BackgroundTasks):
     try:
-        # Twilio envia los datos en formato URL-encoded form
-        form_data = await request.form()
+        # Telegram envía un JSON estructurado, no un formulario URL-encoded
+        data = await request.json()
     except Exception:
-        return Response(content="Formato invalido", status_code=400)
+        return Response(content="Formato inválido", status_code=400)
 
-    numero_remitente = form_data.get("From")
-    texto_usuario = form_data.get("Body")
+    # Extraer el ID del chat y el texto del mensaje de la estructura de Telegram
+    if "message" in data and "text" in data["message"]:
+        chat_id = data["message"]["chat"]["id"]
+        texto_usuario = data["message"]["text"]
+        
+        # Enviar el procesamiento a segundo plano para no hacer esperar a Telegram
+        background_tasks.add_task(procesar_mensaje, chat_id, texto_usuario)
 
-    if not numero_remitente or not texto_usuario:
-        return Response(content="Datos insuficientes", status_code=400)
-
-    # Enviar el procesamiento a segundo plano para no bloquear a Twilio
-    background_tasks.add_task(procesar_mensaje, numero_remitente, texto_usuario)
-
-    # Twilio requiere una respuesta XML (TwiML) valida
-    return Response(content="<Response></Response>", media_type="application/xml", status_code=200)
+    # Confirmar recepción (Status 200) para que Telegram no reintente el envío
+    return Response(status_code=200)
