@@ -16,9 +16,9 @@ def generar_respuesta(mensaje_usuario: str) -> str:
     )
     
     try:
-        # La nueva sintaxis de ejecución para el modelo 2.5 Flash
+        # La nueva sintaxis de ejecución para el modelo 3.6 Flash
         respuesta = cliente.models.generate_content(
-            model="gemini-2.5-flash",
+            model="gemini-3.6-flash",
             contents=prompt_sistema + mensaje_usuario.strip()
         )
         return respuesta.text.strip()
